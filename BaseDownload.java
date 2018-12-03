@@ -98,9 +98,9 @@ abstract class BaseDownload {
 
     private void printHelp() {
         String appName = getAppName();
-        System.out.println("=============================");
+        System.out.println("==========================================================");
         System.out.println(appName + " download script");
-        System.out.println("=============================");
+        System.out.println("==========================================================");
         System.out.println("java " + appName + " [-list] [-dry] [-download] [-get pdf,moby,epub,cbz] [-input HTMLfile] [-output outputdir]");
         System.out.println("  -list: just parse the HTML file and list the items found");
         System.out.println("  -dry: do not download the items, but just HTTP HEAD them, to ensure a download would work");
@@ -108,7 +108,7 @@ abstract class BaseDownload {
         System.out.println("  -get format1,format2,...: download only the specified formats. Any number of extensions is possible");
         System.out.println("  -input file: the input HTML fragment file. Default is page.html, in current dir");
         System.out.println("  -output dir: the output directory. Default is ./output, in current dir. It is created if it is not found");
-        System.out.println("=============================");
+        System.out.println("==========================================================");
         System.out.println("How to  use: ");
         System.out.println("  1. Go to the listing of the files you want to download");
         System.out.println("  2. Open Developer Tools on your browser, copy the HTML fragment containing all the items");
@@ -117,12 +117,12 @@ abstract class BaseDownload {
         System.out.println("  5. (optional) Run the " + appName + " with -dry, to make sure all items can be downloaded");
         System.out.println("  6. Run the " + appName + " with -download, to download all items");
         System.out.println("  7. If you stop the download at any point, just run it again, and it will skip all downloaded files");
-        System.out.println("=============================");
+        System.out.println("==========================================================");
         System.out.println("Default settings:");
         System.out.println("  - input file:    ./page.html");
         System.out.println("  - output folder: ./output");
         System.out.println("  - get:           pdf,mobi,epub,cbz");
-        System.out.println("=============================");
+        System.out.println("==========================================================");
     }
 
     protected List<Item> loadItems(String fileName, String formatsCsv) throws Exception {
@@ -268,20 +268,18 @@ abstract class BaseDownload {
         private void downloadItems() {
             for (int index = 0; index < items.length; index++) {
                 Item item = items[index];
-                int statusCode;
-                LOG.log(INFO, "GET [{0}]", new Object[]{item.name});
 
                 File outputFile = new File(instance.getOutputDir() + "/" + item.name);
                 if (outputFile.exists()) {
                     LOG.log(INFO, "SKIPPING [{0}], it already exists", new Object[]{item.name});
                 } else {
+                    LOG.log(INFO, "GET [{0}]", new Object[]{item.name});
                     HttpURLConnection connection = null;
                     try {
                         URL url = new URL(ensurePendingSlash(instance.getUrlBase()) + item.link);
                         connection = (HttpURLConnection) url.openConnection();
                         connection.setRequestMethod("GET");
-                        statusCode = connection.getResponseCode();
-                        if (statusCode == 200) {
+                        if (connection.getResponseCode() == 200) {
                             try (BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(outputFile)); InputStream inputStream = connection.getInputStream()) {
                                 byte[] buffer = new byte[1024 * 1024];
                                 int readBytes;

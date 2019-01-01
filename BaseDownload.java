@@ -37,7 +37,7 @@ abstract class BaseDownload {
      * @return the base of the URL, in case the links are relative to the HTML page. Just return the empty string
      * if the URL is already absolute (do not return NULL).
      */
-    abstract String getUrlBase();
+    abstract String getBaseUrl();
 
     // ----------------------------------------------------------------------------------------------------
 
@@ -125,7 +125,7 @@ abstract class BaseDownload {
         System.out.println("==========================================================");
     }
 
-    protected List<Item> loadItems(String fileName, String formatsCsv) throws Exception {
+    private List<Item> loadItems(String fileName, String formatsCsv) throws Exception {
         String linkPatternFormat = getRegexPattern();
 
         String[] formats = formatsCsv.split(",");
@@ -148,7 +148,7 @@ abstract class BaseDownload {
         return resultList;
     }
 
-    protected String normalizeFileName(String fileName, String extension) {
+    private String normalizeFileName(String fileName, String extension) {
         String result = fileName;
         result = result.replaceAll("&amp;", "&");
         result = result.replaceAll(":", " - ");
@@ -159,10 +159,12 @@ abstract class BaseDownload {
             result = result + "." + extension;
         }
 
+        result = result.replace("..", ".");
+
         return result;
     }
 
-    protected String normalizeLink(String link) {
+    private String normalizeLink(String link) {
         String result = link;
         result = result.replaceAll("&amp;", "&");
         return result;
@@ -195,7 +197,7 @@ abstract class BaseDownload {
 
             HttpURLConnection connection = null;
             try {
-                URL url = new URL(ensurePendingSlash(getUrlBase()) + item.link);
+                URL url = new URL(combineBaseUrlWithPath(getBaseUrl(), item.link));
                 connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("HEAD");
                 statusCode = connection.getResponseCode();
@@ -276,12 +278,12 @@ abstract class BaseDownload {
                     LOG.log(INFO, "GET [{0}]", new Object[]{item.name});
                     HttpURLConnection connection = null;
                     try {
-                        URL url = new URL(ensurePendingSlash(instance.getUrlBase()) + item.link);
+                        URL url = new URL(combineBaseUrlWithPath(instance.getBaseUrl(), item.link));
                         connection = (HttpURLConnection) url.openConnection();
                         connection.setRequestMethod("GET");
                         if (connection.getResponseCode() == 200) {
                             try (BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(outputFile)); InputStream inputStream = connection.getInputStream()) {
-                                byte[] buffer = new byte[1024 * 1024];
+                                byte[] buffer = new byte[1024 * 1024 * 10];
                                 int readBytes;
                                 while ((readBytes = inputStream.read(buffer)) > 0) {
                                     outputStream.write(buffer, 0, readBytes);
@@ -304,12 +306,16 @@ abstract class BaseDownload {
 
     // ----------------------------------------------------------------------------------------------------
 
-    private static String ensurePendingSlash(String url) {
-        String result = url.trim();
-        if (!result.endsWith("/")) {
-            return result + "/";
+    private static String combineBaseUrlWithPath(String baseUrl, String path) {
+        if (baseUrl == null || baseUrl.length() == 0) {
+            return path.trim();
         }
-        return result;
+        String trimmedBaseUrl = baseUrl.trim();
+        String trimmedPath = path.trim();
+        if (!trimmedBaseUrl.endsWith("/") && !trimmedPath.startsWith("/")) {
+            return trimmedBaseUrl + "/" + trimmedPath;
+        }
+        return trimmedBaseUrl + trimmedPath;
     }
 
     protected static class Item {

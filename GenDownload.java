@@ -17,7 +17,7 @@ public class GenDownload extends BaseDownload {
     }
 
     @Override
-    String getUrlBase() {
+    String getBaseUrl() {
         return "";
     }
 

@@ -21,4 +21,8 @@ public class GenDownload extends BaseDownload {
         return "";
     }
 
+    @Override
+    String getFormatsToDownloadAsCsv() {
+        return "pdf";
+    }
 }

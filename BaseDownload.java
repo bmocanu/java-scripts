@@ -39,6 +39,12 @@ abstract class BaseDownload {
      */
     abstract String getBaseUrl();
 
+    /**
+     * @return the CSV of formats that should be downloaded by default, if the user does not override this
+     * with a config flag
+     */
+    abstract String getFormatsToDownloadAsCsv();
+
     // ----------------------------------------------------------------------------------------------------
 
     private static final Logger LOG = Logger.getLogger(BaseDownload.class.getName());
@@ -49,7 +55,7 @@ abstract class BaseDownload {
         System.setProperty("java.util.logging.SimpleFormatter.format", "%1$tH:%1$tM:%1$tS.%1$tL %4$-10s %5$s %6$s%n");
         String inputFileName = System.getProperty("user.dir") + "/page.html";
         outputDir = System.getProperty("user.dir") + "/output";
-        String formatsToGet = "mobi";
+        String formatsToGet = getFormatsToDownloadAsCsv();
 
         boolean list = false;
         boolean dry = false;
@@ -121,7 +127,7 @@ abstract class BaseDownload {
         System.out.println("Default settings:");
         System.out.println("  - input file:    ./page.html");
         System.out.println("  - output folder: ./output");
-        System.out.println("  - get:           pdf,mobi,epub,cbz");
+        System.out.println("  - get:           " + getFormatsToDownloadAsCsv());
         System.out.println("==========================================================");
     }
 

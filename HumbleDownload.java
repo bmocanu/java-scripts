@@ -21,4 +21,9 @@ public class HumbleDownload extends BaseDownload {
         return "";
     }
 
+    @Override
+    String getFormatsToDownloadAsCsv() {
+        return "pdf,mobi,epub,cbz";
+    }
+
 }

@@ -159,6 +159,7 @@ abstract class BaseDownload {
         result = result.replaceAll("&amp;", "&");
         result = result.replaceAll("[:\\\\/]", " - ");
         result = result.replaceAll("\\s+", " ");
+        result = result.replaceAll("’", "'");
         result = result.trim();
 
         if (!result.endsWith("." + extension)) {

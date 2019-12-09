@@ -157,7 +157,9 @@ abstract class BaseDownload {
     private String normalizeFileName(String fileName, String extension) {
         String result = fileName;
         result = result.replaceAll("&amp;", "&");
+        result = result.replaceAll("&quot;", " ");
         result = result.replaceAll("[:\\\\/]", " - ");
+        result = result.replaceAll("[?*]", " ");
         result = result.replaceAll("\\s+", " ");
         result = result.replaceAll("’", "'");
         result = result.trim();

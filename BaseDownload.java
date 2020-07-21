@@ -1,10 +1,17 @@
-import java.io.*;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.RecursiveAction;
@@ -35,15 +42,15 @@ abstract class BaseDownload {
 
     /**
      * @return the base of the URL, in case the links are relative to the HTML page. Just return the empty string
-     * if the URL is already absolute (do not return NULL).
+     *     if the URL is already absolute (do not return NULL).
      */
     abstract String getBaseUrl();
 
     /**
-     * @return the CSV of formats that should be downloaded by default, if the user does not override this
-     * with a config flag
+     * @return the CSV of extensions that should be downloaded by default, if the user does not override this
+     *     with a config flag
      */
-    abstract String getFormatsToDownloadAsCsv();
+    abstract String getExtensionsToDownloadAsCsv();
 
     // ----------------------------------------------------------------------------------------------------
 
@@ -55,7 +62,7 @@ abstract class BaseDownload {
         System.setProperty("java.util.logging.SimpleFormatter.format", "%1$tH:%1$tM:%1$tS.%1$tL %4$-10s %5$s %6$s%n");
         String inputFileName = System.getProperty("user.dir") + "/page.html";
         outputDir = System.getProperty("user.dir") + "/output";
-        String formatsToGet = getFormatsToDownloadAsCsv();
+        String extensionsToDownloadAsCsv = getExtensionsToDownloadAsCsv();
 
         boolean list = false;
         boolean dry = false;
@@ -73,7 +80,7 @@ abstract class BaseDownload {
                     download = true;
                 }
                 if ("-get".equalsIgnoreCase(args[index])) {
-                    formatsToGet = args[index + 1];
+                    extensionsToDownloadAsCsv = args[index + 1];
                 }
                 if ("-input".equalsIgnoreCase(args[index])) {
                     inputFileName = args[index + 1];
@@ -89,8 +96,9 @@ abstract class BaseDownload {
             return;
         }
 
-        List<Item> items = loadItems(inputFileName, formatsToGet);
-        listItems(items);
+        List<Item> items = loadItems(inputFileName, extensionsToDownloadAsCsv);
+        printListItems(items);
+        printListSummary(items);
         if (dry) {
             dryItems(items);
         }
@@ -127,29 +135,26 @@ abstract class BaseDownload {
         System.out.println("Default settings:");
         System.out.println("  - input file:    ./page.html");
         System.out.println("  - output folder: ./output");
-        System.out.println("  - get:           " + getFormatsToDownloadAsCsv());
+        System.out.println("  - get:           " + getExtensionsToDownloadAsCsv());
         System.out.println("==========================================================");
     }
 
-    private List<Item> loadItems(String fileName, String formatsCsv) throws Exception {
+    private List<Item> loadItems(String fileName, String extensionsCsv) throws Exception {
         String linkPatternFormat = getRegexPattern();
-
-        String[] formats = formatsCsv.split(",");
-        LOG.log(INFO, "Loading download items from: {0}, with formats: {1}", new Object[]{fileName, Arrays.toString(formats)});
+        String[] extensionsArray = extensionsCsv.split(",");
+        LOG.log(INFO, "Loading download items from: {0}, with extensions: {1}", new Object[]{fileName, Arrays.toString(extensionsArray)});
         String inputFileContent = loadFile(fileName);
         List<Item> resultList = new ArrayList<>();
-        for (String format : formats) {
-            int itemsCount = 0;
-            Pattern pattern = Pattern.compile(linkPatternFormat.replace("{extension}", format.trim()));
+        for (String extension : extensionsArray) {
+            Pattern pattern = Pattern.compile(linkPatternFormat.replace("{extension}", extension.trim()));
             Matcher linkPatternMatcher = pattern.matcher(inputFileContent);
             while (linkPatternMatcher.find()) {
                 Item newItem = new Item();
-                newItem.name = normalizeFileName(linkPatternMatcher.group("name"), format);
+                newItem.name = normalizeFileName(linkPatternMatcher.group("name"), extension);
                 newItem.link = normalizeLink(linkPatternMatcher.group("link"));
+                newItem.extension = extension;
                 resultList.add(newItem);
-                itemsCount++;
             }
-            LOG.log(INFO, "Found {0} items with extension: {1}", new Object[]{itemsCount, format});
         }
         return resultList;
     }
@@ -158,10 +163,12 @@ abstract class BaseDownload {
         String result = fileName;
         result = result.replaceAll("&amp;", "&");
         result = result.replaceAll("&quot;", " ");
-        result = result.replaceAll("[:\\\\/]", " - ");
-        result = result.replaceAll("[?*]", " ");
-        result = result.replaceAll("\\s+", " ");
+        result = result.replaceAll(":", " - ");
+        result = result.replaceAll("–", "-");
         result = result.replaceAll("’", "'");
+        result = result.replaceAll("[^a-zA-Z0-9()#&\\-']", " ");
+        // result = result.replaceAll("[?*]", " ");
+        result = result.replaceAll("\\s+", " ");
         result = result.trim();
 
         if (!result.endsWith("." + extension)) {
@@ -179,11 +186,25 @@ abstract class BaseDownload {
         return result;
     }
 
-    private void listItems(List<Item> items) {
+    private void printListItems(List<Item> items) {
         LOG.log(INFO, "Printing {0} item(s)", items.size());
         for (int index = 0; index < items.size(); index++) {
             Item item = items.get(index);
-            LOG.log(INFO, "{0} - Item [{1}] ==> [{2}]", new Object[]{index, item.name, item.link});
+            LOG.log(INFO, "{0}\t - Item [{1}]", new Object[]{index + 1, item.name});
+        }
+    }
+
+    private void printListSummary(List<Item> itemList) {
+        Map<String, Integer> extensionCountMap = new HashMap<>();
+        for (Item item : itemList) {
+            Integer count = extensionCountMap.get(item.extension);
+            if (count == null) {
+                count = 0;
+            }
+            extensionCountMap.put(item.extension, count + 1);
+        }
+        for (Map.Entry<String, Integer> countEntry : extensionCountMap.entrySet()) {
+            LOG.log(INFO, "Found {0} items with extension: {1}", new Object[]{countEntry.getValue(), countEntry.getKey()});
         }
     }
 
@@ -249,11 +270,8 @@ abstract class BaseDownload {
 
     private static class DownloadTask extends RecursiveAction {
 
-        private Item[] items;
-
-        private int downloadLimit = 50;
-
-        private BaseDownload instance;
+        private final Item[] items;
+        private final BaseDownload instance;
 
         DownloadTask(BaseDownload instance, Item[] items) {
             this.instance = instance;
@@ -262,6 +280,7 @@ abstract class BaseDownload {
 
         @Override
         protected void compute() {
+            int downloadLimit = 50;
             if (items.length > downloadLimit) {
                 ForkJoinTask.invokeAll(splitInHalf());
             } else {
@@ -277,9 +296,7 @@ abstract class BaseDownload {
         }
 
         private void downloadItems() {
-            for (int index = 0; index < items.length; index++) {
-                Item item = items[index];
-
+            for (Item item : items) {
                 File outputFile = new File(instance.getOutputDir() + "/" + item.name);
                 if (outputFile.exists()) {
                     LOG.log(INFO, "SKIPPING [{0}], it already exists", new Object[]{item.name});
@@ -291,7 +308,8 @@ abstract class BaseDownload {
                         connection = (HttpURLConnection) url.openConnection();
                         connection.setRequestMethod("GET");
                         if (connection.getResponseCode() == 200) {
-                            try (BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(outputFile)); InputStream inputStream = connection.getInputStream()) {
+                            try (BufferedOutputStream outputStream = new BufferedOutputStream(
+                                new FileOutputStream(outputFile)); InputStream inputStream = connection.getInputStream()) {
                                 byte[] buffer = new byte[1024 * 1024 * 10];
                                 int readBytes;
                                 while ((readBytes = inputStream.read(buffer)) > 0) {
@@ -330,6 +348,7 @@ abstract class BaseDownload {
     protected static class Item {
         String name;
         String link;
+        String extension;
     }
 
 }

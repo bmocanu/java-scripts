@@ -22,7 +22,7 @@ public class GenDownload extends BaseDownload {
     }
 
     @Override
-    String getFormatsToDownloadAsCsv() {
+    String getExtensionsToDownloadAsCsv() {
         return "pdf";
     }
 }

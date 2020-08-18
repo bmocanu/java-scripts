@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.RecursiveAction;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -257,7 +258,7 @@ abstract class BaseDownload {
         System.setProperty("http.keepAlive", "false");
 
         ForkJoinPool commonPool = ForkJoinPool.commonPool();
-        DownloadTask downloadTask = new DownloadTask(this, items.toArray(new Item[0]));
+        DownloadTask downloadTask = new DownloadTask(this, items.toArray(new Item[0]), new FileCounter(items.size()));
         commonPool.execute(downloadTask);
         downloadTask.join();
     }
@@ -272,10 +273,12 @@ abstract class BaseDownload {
 
         private final Item[] items;
         private final BaseDownload instance;
+        private final FileCounter fileCounter;
 
-        DownloadTask(BaseDownload instance, Item[] items) {
+        DownloadTask(BaseDownload instance, Item[] items, FileCounter fileCounter) {
             this.instance = instance;
             this.items = items;
+            this.fileCounter = fileCounter;
         }
 
         @Override
@@ -290,18 +293,20 @@ abstract class BaseDownload {
 
         private Collection<DownloadTask> splitInHalf() {
             List<DownloadTask> dividedTasks = new ArrayList<>();
-            dividedTasks.add(new DownloadTask(instance, Arrays.copyOfRange(items, 0, items.length / 2)));
-            dividedTasks.add(new DownloadTask(instance, Arrays.copyOfRange(items, items.length / 2, items.length)));
+            dividedTasks.add(new DownloadTask(instance, Arrays.copyOfRange(items, 0, items.length / 2), fileCounter));
+            dividedTasks.add(new DownloadTask(instance, Arrays.copyOfRange(items, items.length / 2, items.length), fileCounter));
             return dividedTasks;
         }
 
         private void downloadItems() {
             for (Item item : items) {
+                int fileIndex = fileCounter.counter.incrementAndGet();
                 File outputFile = new File(instance.getOutputDir() + "/" + item.name);
                 if (outputFile.exists()) {
-                    LOG.log(INFO, "SKIPPING [{0}], it already exists", new Object[]{item.name});
+                    LOG.log(INFO, "{0}/{1}: SKIPPING [{2}], it already exists",
+                            new Object[]{fileIndex, fileCounter.totalFiles, item.name});
                 } else {
-                    LOG.log(INFO, "GET [{0}]", new Object[]{item.name});
+                    LOG.log(INFO, "{0}/{1}: GET [{2}]", new Object[]{fileIndex, fileCounter.totalFiles, item.name});
                     HttpURLConnection connection = null;
                     try {
                         URL url = new URL(combineBaseUrlWithPath(instance.getBaseUrl(), item.link));
@@ -318,7 +323,8 @@ abstract class BaseDownload {
                             }
                         }
                     } catch (Exception e) {
-                        LOG.log(SEVERE, "Failed to download file {0}", new Object[]{item.name});
+                        LOG.log(SEVERE, "{0}/{1}: Failed to download file [{2}]",
+                                new Object[]{fileIndex, fileCounter.totalFiles, item.name});
                         e.printStackTrace();
                     } finally {
                         if (connection != null) {
@@ -327,6 +333,18 @@ abstract class BaseDownload {
                     }
                 }
             }
+        }
+
+    }
+
+    private static class FileCounter {
+
+        public final AtomicInteger counter;
+        public final int totalFiles;
+
+        public FileCounter(int totalFiles) {
+            this.counter = new AtomicInteger();
+            this.totalFiles = totalFiles;
         }
 
     }
